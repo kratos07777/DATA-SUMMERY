@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop Manager</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#1b2430;--mu:#667085;--bd:#e3e8ef;--pr:#2563eb;--ok:#16a34a;--wa:#d97706;--er:#dc2626;--sb:#111827;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#0f141b;--card:#18202b;--tx:#e8edf3;--mu:#98a2b3;--bd:#263241;--pr:#4f8cff;--sb:#0a0e14}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+nav{position:fixed;left:0;top:0;bottom:0;width:210px;background:var(--sb);color:#cbd5e1;padding:18px 12px;padding-top:calc(18px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:4px}
+nav h1{font-size:17px;color:#fff;margin:0 8px 14px}
+nav button{all:unset;cursor:pointer;padding:10px 12px;border-radius:8px;display:flex;gap:10px}
+nav button:hover{background:#1f2937}nav button.on{background:var(--pr);color:#fff}
+main{margin-left:210px;padding:22px;max-width:1100px}
+h2{margin:0 0 16px;font-size:22px}h3{margin:0 0 10px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid .card{margin:0}.k{color:var(--mu);font-size:13px}.v{font-size:24px;font-weight:700;margin-top:2px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;width:100%}
+.bar input,.bar select{width:auto;flex:1;min-width:130px}
+button.b{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;padding:7px 12px}
+button.p{background:var(--pr);border-color:var(--pr);color:#fff}button.d{color:var(--er)}button.g{background:var(--ok);border-color:var(--ok);color:#fff}
+.sm{padding:4px 9px!important;font-size:13px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--bd);flex-wrap:wrap}
+.row:first-child{border-top:0}.row>div:first-child{flex:1;min-width:180px}.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.t{font-size:12px;padding:2px 9px;border-radius:99px;color:#fff;font-weight:600}
+.pending{background:var(--wa)}.processing{background:var(--pr)}.completed{background:var(--ok)}
+.mu{color:var(--mu);font-size:13px}.pos{color:var(--ok)}.neg{color:var(--er)}
+#md{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:14px;z-index:20}
+#md.on{display:flex}.box{background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:560px;max-height:90vh;overflow:auto}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 6px;border-top:1px solid var(--bd)}
+.wrap{overflow-x:auto}pre{white-space:pre-wrap}
+@media(max-width:760px){nav{top:auto;width:auto;right:0;flex-direction:row;padding:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around}
+nav h1{display:none}nav button{flex-direction:column;align-items:center;gap:0;font-size:10px;padding:6px 3px;text-align:center;min-width:0}
+main{margin:0;padding:14px;padding-bottom:90px}}
+@media print{body>*:not(#md){display:none!important}#md{position:static;background:none;display:block}#md .box{max-height:none;overflow:visible;padding:0}.np{display:none!important}}
+</style><style id="pg"></style></head>
+<body>
+<nav id="nav"></nav><main id="main"><p class="mu">Loading…</p></main><div id="md"><div class="box" id="bx"></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const money=n=>'₹'+(+n||0).toLocaleString('en-IN');
+const sum=a=>a.reduce((s,x)=>s+(+x.amount||0),0);
+let db,assets,S={customers:[],orders:[],expenses:[],jobs:[],press:[]},view='dash',q='',fl='all',rd=today(),cur=null;
+const NAV=[['dash','📊','Dashboard'],['orders','🧾','Orders'],['cust','👥','Customers'],['print','🖨️','Printing'],['chapa','🏭','Chapakhana'],['spent','💸','Spent summary'],['rep','📈','Reports']];
+const ftype=n=>{const e=(n.split('.').pop()||'').toLowerCase();return ['png','jpg','jpeg','gif','webp','svg','bmp'].includes(e)?'img':e=='pdf'?'pdf':['txt','csv','md','json'].includes(e)?'txt':'other'};
+const badge=s=>`<span class="t ${s}">${s}</span>`;
+const cust=id=>S.customers.find(c=>c.id==id);
+const ord=id=>S.orders.find(o=>o.id==id);
+const sorted=a=>[...a].sort((x,y)=>(x.created||0)-(y.created||0));
+const queuePos=o=>sorted(S.orders.filter(x=>x.status!='completed')).findIndex(x=>x.id==o.id)+1;
+
+async function init(){
+  db=window.claude?await Promise.race([claude.use('db'),new Promise(r=>setTimeout(()=>r(null),10000))]):null;
+  if(!db){$('#main').innerHTML='<div class="card"><h3>Sign in required</h3><p class="mu">Open this page while signed in to claude.ai to load your shop data.</p></div>';return}
+  assets=await claude.use('assets');
+  for(const k of Object.keys(S))db.collection(k).onSnapshot(s=>{S[k]=s.docs.map(d=>({id:d.id,...d.data()}));render()},e=>{$('#main').innerHTML='<div class="card">Could not load data: '+esc(e.message||e.code)+'</div>'});
+  render();
+}
+function render(){
+  const fo=document.activeElement&&document.activeElement.id=='q',pos=fo?document.activeElement.selectionStart:0;
+  $('#nav').innerHTML='<h1>🏪 Shop Manager</h1>'+NAV.map(n=>`<button data-a="nav" data-i="${n[0]}" class="${view==n[0]?'on':''}"><span>${n[1]}</span>${n[2]}</button>`).join('');
+  $('#main').innerHTML=({dash,orders,cust:custs,print:prints,chapa,spent,rep})[view]();
+  if(fo){const e=$('#q');e.focus();e.setSelectionRange(pos,pos)}
+}
+const searchBar=(extra='')=>`<div class="bar"><input id="q" placeholder="Search…" value="${esc(q)}">${extra}</div>`;
+const match=(...f)=>!q||f.join(' ').toLowerCase().includes(q.toLowerCase());
+
+function dash(){
+  const t=today(),to=S.orders.filter(o=>o.date==t),ex=sum(S.expenses.filter(e=>e.date==t)),sales=sum(to)+sum(S.jobs.filter(j=>j.date==t));
+  const st=s=>S.orders.filter(o=>o.status==s).length;
+  const card=(k,v,c='')=>`<div class="card"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`;
+  const act=sorted(S.orders.filter(o=>o.status!='completed')).slice(0,8);
+  return `<h2>Dashboard</h2><div class="grid">${card('Today’s sales',money(sales))}${card('Orders today',to.length)}${card('Pending',st('pending'))}${card('Processing',st('processing'))}${card('Completed',st('completed'))}${card('Daily expenses',money(ex))}${card('Daily profit',money(sales-ex),sales-ex<0?'neg':'pos')}</div>
+  <div class="card"><h3>Order queue</h3>${act.length?act.map(o=>`<div class="row"><div><b>#${queuePos(o)} · ${esc(o.cname)}</b><div class="mu">${esc(o.desc)}</div></div><div class="acts">${badge(o.status)}<button class="b sm" data-a="viewOrd" data-i="${o.id}">View</button></div></div>`).join(''):'<p class="mu">No open orders.</p>'}</div>
+  <div class="bar"><button class="b p" data-a="newOrd">+ New order</button><button class="b" data-a="newCust">+ New customer</button></div>`;
+}
+function orders(){
+  const l=sorted(S.orders).reverse().filter(o=>(fl=='all'||o.status==fl)&&match(o.no,o.cname,o.desc));
+  return `<h2>Orders</h2>${searchBar(`<select id="fl"><option value="all">All statuses</option>${['pending','processing','completed'].map(s=>`<option ${fl==s?'selected':''}>${s}</option>`).join('')}</select><button class="b p" data-a="newOrd">+ New order</button>`)}
+  <div class="card">${l.length?l.map(o=>`<div class="row"><div><b>${esc(o.no)} · ${esc(o.cname)}</b> ${o.status!='completed'?`<span class="mu">queue #${queuePos(o)}</span>`:''}<div class="mu">${esc(o.desc)} · ${money(o.amount)} · ${o.date}</div></div><div class="acts"><select data-st="${o.id}" class="sm" style="width:auto">${['pending','processing','completed'].map(s=>`<option ${o.status==s?'selected':''}>${s}</option>`).join('')}</select><button class="b sm" data-a="viewOrd" data-i="${o.id}">Details</button><button class="b sm d" data-a="delOrd" data-i="${o.id}">Delete</button></div></div>`).join(''):'<p class="mu">No orders found.</p>'}</div>`;
+}
+function custs(){
+  const l=S.customers.filter(c=>match(c.name,c.phone,c.address)).sort((a,b)=>a.name.localeCompare(b.name));
+  return `<h2>Customers</h2>${searchBar('<button class="b p" data-a="newCust">+ Add customer</button>')}<div class="card">${l.length?l.map(c=>`<div class="row"><div><b>${esc(c.name)}</b><div class="mu">${esc(c.phone)} · ${esc(c.address)}</div></div><div class="acts"><button class="b sm" data-a="viewCust" data-i="${c.id}">History &amp; files</button><button class="b sm" data-a="editCust" data-i="${c.id}">Edit</button><button class="b sm d" data-a="delCust" data-i="${c.id}">Delete</button></div></div>`).join(''):'<p class="mu">No customers yet.</p>'}</div>`;
+}
+function prints(){
+  const l=sorted(S.orders.filter(o=>o.ps=='ready'||o.ps=='printed')).reverse().filter(o=>match(o.no,o.cname,o.desc));
+  const r=o=>`<div class="row"><div><b>${esc(o.no)} · ${esc(o.cname)}</b><div class="mu">${esc(o.desc)}${o.file?' · 📎 '+esc(o.file.name):' · no file attached'}</div></div><div class="acts">${o.ps=='ready'?'<span class="t processing">ready to print</span>':'<span class="t completed">printed</span>'}${o.file?`<button class="b sm p" data-a="prev" data-i="${o.id}">Preview &amp; print</button>`:''}</div></div>`;
+  const rd_=l.filter(o=>o.ps=='ready'),pr=l.filter(o=>o.ps=='printed');
+  const wait=S.orders.filter(o=>o.status!='completed'&&o.ps!='ready'&&o.ps!='printed'&&o.file);
+  return `<h2>Printing</h2>${searchBar()}<div class="card"><h3>Ready to print (${rd_.length})</h3>${rd_.map(r).join('')||'<p class="mu">Nothing waiting.</p>'}</div>
+  <div class="card"><h3>Open orders with files</h3>${wait.map(o=>`<div class="row"><div><b>${esc(o.no)} · ${esc(o.cname)}</b><div class="mu">📎 ${esc(o.file.name)}</div></div><button class="b sm g" data-a="ready" data-i="${o.id}">Mark ready to print</button></div>`).join('')||'<p class="mu">None.</p>'}</div>
+  <div class="card"><h3>Printed</h3>${pr.map(r).join('')||'<p class="mu">Nothing printed yet.</p>'}</div>`;
+}
+function rep(){
+  const o=sorted(S.orders.filter(x=>x.date==rd)),ex=S.expenses.filter(e=>e.date==rd),inc=sum(o)+sum(S.jobs.filter(j=>j.date==rd)),ep=sum(ex);
+  const cr=S.customers.filter(c=>match(c.name)).map(c=>{const a=S.orders.filter(x=>x.cid==c.id);return{n:c.name,c:a.length,t:sum(a)}}).sort((a,b)=>b.t-a.t);
+  return `<h2>Daily reports</h2><div class="bar"><input type="date" id="rd" value="${rd}"><button class="b" data-a="csv">⬇ Export CSV (for Drive)</button></div>
+  <div class="grid"><div class="card"><div class="k">Income</div><div class="v">${money(inc)}</div></div><div class="card"><div class="k">Expenses</div><div class="v">${money(ep)}</div></div><div class="card"><div class="k">Profit</div><div class="v ${inc-ep<0?'neg':'pos'}">${money(inc-ep)}</div></div></div>
+  <div class="card"><h3>Expenses</h3><div class="bar"><input id="ed" placeholder="What for?"><select id="ec">${CATS.map(c=>`<option>${c}</option>`).join('')}</select><input id="ea" type="number" min="0" placeholder="Amount"><button class="b p" data-a="addExp">Add</button></div>${ex.map(e=>`<div class="row"><div>${esc(e.desc)} <span class="mu">· ${esc(e.cat||'Other')}</span></div><div class="acts">${money(e.amount)}<button class="b sm d" data-a="delExp" data-i="${e.id}">✕</button></div></div>`).join('')||'<p class="mu">No expenses on this day.</p>'}</div>
+  <div class="card"><h3>Orders on ${rd}</h3><div class="wrap"><table><tr><th>No</th><th>Customer</th><th>Item</th><th>Status</th><th>Amount</th></tr>${o.map(x=>`<tr><td>${esc(x.no)}</td><td>${esc(x.cname)}</td><td>${esc(x.desc)}</td><td>${x.status}</td><td>${money(x.amount)}</td></tr>`).join('')||'<tr><td colspan=5 class="mu">No orders.</td></tr>'}</table></div></div>
+  <div class="card"><h3>Customer report</h3>${searchBar().replace('class="bar"','class="bar" style="margin:0 0 8px"')}<div class="wrap"><table><tr><th>Customer</th><th>Orders</th><th>Total spent</th></tr>${cr.map(c=>`<tr><td>${esc(c.n)}</td><td>${c.c}</td><td>${money(c.t)}</td></tr>`).join('')}</table></div></div>`;
+}
+const CATS=['Rent','Salary','Electricity','Paper & ink','Supplies','Transport','Other'];
+const RATES={'B&W print':2,'Colour print':10,'Photocopy':1,'Photo print':15,'Lamination':20,'Binding':30,'Flex / banner':100,'Other':0};
+let sp='month';
+const dstr=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const from=p=>{const d=new Date();if(p=='today')return today();if(p=='week'){d.setDate(d.getDate()-6);return dstr(d)}if(p=='month')return today().slice(0,8)+'01';return ''};
+let ct='ord';
+function chapa(){
+  const all=sorted(S.press).reverse(),o=all.filter(x=>x.status!='received'),r=all.filter(x=>x.status=='received');
+  const l=(ct=='ord'?o:r).filter(x=>match(x.item,x.press,x.cname));
+  const tab=(k,t,n)=>`<button class="b ${ct==k?'p':''}" data-a="ctab" data-i="${k}">${t} (${n})</button>`;
+  return `<h2>Chapakhana</h2><div class="bar">${tab('ord','Ordered items',o.length)}${tab('rec','Received cards',r.length)}</div>${searchBar(ct=='ord'?'<button class="b p" data-a="newPress">+ Order item</button>':'')}<div class="card">${l.map(x=>`<div class="row"><div><b>${esc(x.item)}</b> · ${x.qty} pcs${x.cname?' · for '+esc(x.cname):''}<div class="mu">${x.press?esc(x.press)+' · ':''}ordered ${x.date}${x.cost?' · '+money(x.cost):''}${x.status=='received'?' · received '+x.rdate:''}</div></div><div class="acts">${x.status=='received'?'<span class="t completed">received</span>':`<button class="b sm g" data-a="recv" data-i="${x.id}">Mark received</button>`}<button class="b sm d" data-a="delPress" data-i="${x.id}">✕</button></div></div>`).join('')||'<p class="mu">Nothing here yet.</p>'}</div>`;
+}
+function chapaOld(){
+  const t=today(),tj=S.jobs.filter(j=>j.date==t),pg=tj.reduce((s,j)=>s+j.pages*j.copies,0);
+  const l=sorted(S.jobs).reverse().filter(j=>match(j.service,j.cname,j.date)).slice(0,60);
+  const c=(k,v)=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  return `<h2>Chapakhana <span class="mu">(print shop)</span></h2><div class="grid">${c('Jobs today',tj.length)}${c('Pages printed today',pg)}${c('Print income today',money(sum(tj)))}</div>${searchBar('<button class="b p" data-a="newJob">+ New print job</button>')}<div class="card"><h3>Print jobs</h3>${l.map(j=>`<div class="row"><div><b>${esc(j.service)}</b>${j.cname?' · '+esc(j.cname):''}<div class="mu">${j.pages} pages × ${j.copies} copies × ${money(j.rate)} · ${j.date}</div></div><div class="acts"><b>${money(j.amount)}</b><button class="b sm d" data-a="delJob" data-i="${j.id}">✕</button></div></div>`).join('')||'<p class="mu">No print jobs yet.</p>'}</div>`;
+}
+function spent(){
+  const f=from(sp),ex=S.expenses.filter(e=>e.date>=f),tot=sum(ex);
+  const inc=sum(S.orders.filter(o=>o.date>=f))+sum(S.jobs.filter(j=>j.date>=f));
+  const bc={};ex.forEach(e=>{const k=e.cat||'Other';bc[k]=(bc[k]||0)+(+e.amount||0)});
+  const cats=Object.entries(bc).sort((a,b)=>b[1]-a[1]);
+  const days=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=dstr(d);days.push([k.slice(5),sum(S.expenses.filter(e=>e.date==k))])}
+  const bar=(l,v,m)=>`<div style="margin:8px 0"><div style="display:flex;justify-content:space-between"><span>${esc(l)}</span><b>${money(v)}</b></div><div style="background:var(--bd);border-radius:6px;height:8px"><div style="width:${v/m*100}%;background:var(--pr);height:8px;border-radius:6px"></div></div></div>`;
+  const c=(k,v,x='')=>`<div class="card"><div class="k">${k}</div><div class="v ${x}">${v}</div></div>`;
+  const recent=[...ex].sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,30);
+  return `<h2>Spent summary</h2><div class="bar"><select id="sp">${[['today','Today'],['week','Last 7 days'],['month','This month'],['all','All time']].map(p=>`<option value="${p[0]}" ${sp==p[0]?'selected':''}>${p[1]}</option>`).join('')}</select></div>
+  <div class="grid">${c('Total spent',money(tot),'neg')}${c('Entries',ex.length)}${c('Income',money(inc))}${c('Profit',money(inc-tot),inc-tot<0?'neg':'pos')}</div>
+  <div class="card"><h3>By category</h3>${cats.map(x=>bar(x[0],x[1],cats[0][1])).join('')||'<p class="mu">No spending in this period.</p>'}</div>
+  <div class="card"><h3>Last 7 days</h3>${days.map(d=>bar(d[0],d[1],Math.max(1,...days.map(x=>x[1])))).join('')}</div>
+  <div class="card"><h3>Recent spending</h3>${recent.map(e=>`<div class="row"><div>${esc(e.desc)}<div class="mu">${esc(e.cat||'Other')} · ${e.date}</div></div><b>${money(e.amount)}</b></div>`).join('')||'<p class="mu">Nothing yet. Add expenses in Reports.</p>'}</div>`;
+}
+/* modal */
+const modal=h=>{$('#bx').innerHTML=h;$('#md').classList.add('on')};
+const closeM=()=>$('#md').classList.remove('on');
+const val=id=>($('#'+id)||{}).value||'';
+function custForm(c={}){modal(`<h3>${c.id?'Edit':'New'} customer</h3><label>Name</label><input id="cn" value="${esc(c.name)}"><label>Phone</label><input id="cp" type="tel" value="${esc(c.phone)}"><label>Address</label><textarea id="ca" rows="2">${esc(c.address)}</textarea><div class="acts" style="margin-top:14px"><button class="b p" data-a="saveCust" data-i="${c.id||''}">Save</button><button class="b" data-a="close">Cancel</button></div>`)}
+function ordForm(){
+  if(!S.customers.length){modal('<h3>Add a customer first</h3><p class="mu">Orders belong to a customer.</p><button class="b p" data-a="newCust">Add customer</button>');return}
+  modal(`<h3>New order</h3><label>Customer</label><select id="oc">${S.customers.map(c=>`<option value="${c.id}">${esc(c.name)} · ${esc(c.phone)}</option>`).join('')}</select><label>Order details</label><textarea id="od" rows="2" placeholder="e.g. 20 colour prints, A4"></textarea><label>Amount (₹)</label><input id="oa" type="number" min="0"><label>Status</label><select id="os"><option>pending</option><option>processing</option></select>${assets?'<label>Attach file (PDF, image or text)</label><input id="of" type="file" accept="image/*,.pdf,.txt,.csv,.md,.json">':''}<div class="acts" style="margin-top:14px"><button class="b p" id="so" data-a="saveOrd">Create order</button><button class="b" data-a="close">Cancel</button></div>`)}
+async function upload(f){const r=await assets.upload(f);return{id:r.id,url:r.url,name:f.name}}
+function fileLinks(a){return a.map(f=>`<div class="row"><div>📎 ${esc(f.name)}</div><a class="b sm" style="text-decoration:none;color:inherit;border:1px solid var(--bd);border-radius:8px" href="${esc(f.url)}" target="_blank" rel="noopener">Open</a></div>`).join('')||'<p class="mu">No files.</p>'}
+
+async function act(a,i,el){
+  try{
+  if(a=='nav'){view=i;q='';render()}
+  else if(a=='close')closeM();
+  else if(a=='newCust')custForm();
+  else if(a=='editCust')custForm(cust(i));
+  else if(a=='saveCust'){const d={name:val('cn').trim(),phone:val('cp').trim(),address:val('ca').trim()};if(!d.name)return alert('Name is required');
+    if(i)await db.doc('customers/'+i).update(d);else await db.collection('customers').add({...d,files:[]});closeM()}
+  else if(a=='delCust'){if(confirm('Delete this customer? Their orders are kept.'))await db.doc('customers/'+i).delete()}
+  else if(a=='viewCust'){const c=cust(i);cur=i;const os=sorted(S.orders.filter(o=>o.cid==i)).reverse();
+    modal(`<h3>${esc(c.name)}</h3><p class="mu">${esc(c.phone)} · ${esc(c.address)}</p><h3>Order history (${os.length}, ${money(sum(os))})</h3>${os.map(o=>`<div class="row"><div>${esc(o.no)} · ${esc(o.desc)}<div class="mu">${o.date} · ${money(o.amount)}</div></div>${badge(o.status)}</div>`).join('')||'<p class="mu">No orders yet.</p>'}<h3 style="margin-top:14px">Files</h3>${fileLinks(c.files||[])}${assets?'<label>Add file</label><input type="file" data-up="1" accept="image/*,.pdf,.txt,.csv,.md,.json">':''}<div class="acts" style="margin-top:14px"><button class="b" data-a="close">Close</button></div>`)}
+  else if(a=='newOrd')ordForm();
+  else if(a=='saveOrd'){const c=cust(val('oc')),d=val('od').trim();if(!d)return alert('Add order details');el.disabled=true;
+    let file=null;const fi=$('#of');if(fi&&fi.files[0]){file=await upload(fi.files[0]);await db.doc('customers/'+c.id).update({files:[...(c.files||[]),file]})}
+    const now=Date.now();await db.collection('orders').add({no:'ORD-'+now.toString(36).slice(-5).toUpperCase(),cid:c.id,cname:c.name,desc:d,amount:+val('oa')||0,status:val('os'),date:today(),created:now,file,ps:'none'});closeM()}
+  else if(a=='viewOrd'){const o=ord(i),c=cust(o.cid)||{};
+    modal(`<h3>${esc(o.no)} ${badge(o.status)}</h3><p><b>${esc(o.cname)}</b><br><span class="mu">${esc(c.phone||'')} · ${esc(c.address||'')}</span></p><p>${esc(o.desc)}</p><p>Amount: <b>${money(o.amount)}</b><br><span class="mu">Created ${new Date(o.created).toLocaleString()}${o.status!='completed'?' · queue #'+queuePos(o):''}</span></p>${o.file?`<h3>File</h3>${fileLinks([o.file])}`:''}<div class="acts" style="margin-top:12px">${o.file&&o.ps!='ready'?`<button class="b g" data-a="ready" data-i="${o.id}">Mark ready to print</button>`:''}${o.ps=='ready'?`<button class="b p" data-a="prev" data-i="${o.id}">Preview &amp; print</button>`:''}<button class="b" data-a="close">Close</button></div>`)}
+  else if(a=='delOrd'){if(confirm('Delete this order?'))await db.doc('orders/'+i).delete()}
+  else if(a=='ready'){const o=ord(i);await db.doc('orders/'+i).update({ps:'ready',status:o.status=='pending'?'processing':o.status});closeM()}
+  else if(a=='prev'){const o=ord(i);cur=i;const f=o.file,t=ftype(f.name);let body;
+    if(t=='img')body=`<img src="${esc(f.url)}" style="max-width:100%">`;
+    else if(t=='pdf')body=`<iframe id="pf" src="${esc(f.url)}" style="width:100%;height:55vh;border:0"></iframe>`;
+    else if(t=='txt'){try{body='<pre>'+esc(await(await fetch(f.url)).text())+'</pre>'}catch{body=''}}
+    if(!body)body=`<p>This file type can’t be previewed here. <a href="${esc(f.url)}" target="_blank" rel="noopener">Open or download it</a>.</p>`;
+    modal(`<div class="np"><h3>Print preview · ${esc(o.no)}</h3><div class="bar"><select id="ori"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select><select id="mar"><option value="12mm">Normal margins</option><option value="0">No margins</option><option value="25mm">Wide margins</option></select></div></div><div id="pv" style="border:1px solid var(--bd);border-radius:8px;padding:8px">${body}</div><div class="np"><h3 style="margin-top:14px">Print now?</h3><div class="acts"><button class="b g" data-a="yes" data-i="${o.id}">YES</button><button class="b d" data-a="no">NO</button></div><p class="mu">YES opens your browser’s print dialog, where you choose the printer and copies.</p></div>`)}
+  else if(a=='yes'){$('#pg').textContent=`@page{size:${val('ori')};margin:${val('mar')}}`;const pf=$('#pf');
+    await db.doc('orders/'+i).update({ps:'printed',status:'completed'});
+    if(pf){try{pf.contentWindow.focus();pf.contentWindow.print()}catch{window.open(pf.src,'_blank')}}else window.print()}
+  else if(a=='no')closeM();
+  else if(a=='addExp'){const d=val('ed').trim(),n=+val('ea');if(!d||!n)return alert('Enter what it was for and the amount');await db.collection('expenses').add({desc:d,amount:n,cat:val('ec')||'Other',date:rd,created:Date.now()})}
+  else if(a=='newJob')modal(`<h3>New print job</h3><label>Service</label><select id="js">${Object.keys(RATES).map(s=>`<option>${s}</option>`).join('')}</select><label>Customer name (optional)</label><input id="jn"><label>Pages / items</label><input id="jp" type="number" min="1"><label>Copies</label><input id="jc" type="number" min="1" value="1"><label>Rate per page / item (₹)</label><input id="jr" type="number" min="0" value="${RATES['B&W print']}"><h3 style="margin-top:14px">Total: <span id="jt">₹0</span></h3><div class="acts"><button class="b p" data-a="saveJob">Save job</button><button class="b" data-a="close">Cancel</button></div>`);
+  else if(a=='saveJob'){const p=+val('jp'),c=+val('jc')||1,r=+val('jr')||0;if(!p)return alert('Enter the number of pages');await db.collection('jobs').add({service:val('js'),pages:p,copies:c,rate:r,amount:p*c*r,cname:val('jn').trim(),date:today(),created:Date.now()});closeM()}
+  else if(a=='ctab'){ct=i;q='';render()}
+  else if(a=='newPress')modal(`<h3>Order item from chapakhana</h3><label>Item / card</label><input id="pi" placeholder="e.g. Wedding cards"><label>Quantity</label><input id="pq" type="number" min="1"><label>Chapakhana / press name (optional)</label><input id="pp"><label>For customer (optional)</label><input id="pn"><label>Cost ₹ (optional)</label><input id="pc" type="number" min="0"><div class="acts" style="margin-top:14px"><button class="b p" data-a="savePress">Save</button><button class="b" data-a="close">Cancel</button></div>`);
+  else if(a=='savePress'){const it=val('pi').trim(),qt=+val('pq');if(!it||!qt)return alert('Enter the item and quantity');await db.collection('press').add({item:it,qty:qt,press:val('pp').trim(),cname:val('pn').trim(),cost:+val('pc')||0,status:'ordered',date:today(),created:Date.now()});closeM()}
+  else if(a=='recv')await db.doc('press/'+i).update({status:'received',rdate:today()});
+  else if(a=='delPress'){if(confirm('Delete this entry?'))await db.doc('press/'+i).delete()}
+  else if(a=='delJob'){if(confirm('Delete this print job?'))await db.doc('jobs/'+i).delete()}
+  else if(a=='delExp')await db.doc('expenses/'+i).delete();
+  else if(a=='csv'){const dl=await claude.use('downloads');if(!dl)return alert('Download is not available here');
+    const c=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const rows=[['Orders'],['No','Date','Customer','Details','Status','Amount'],...sorted(S.orders).map(o=>[o.no,o.date,o.cname,o.desc,o.status,o.amount]),[],['Expenses'],['Date','Description','Amount'],...S.expenses.map(e=>[e.date,e.desc,e.amount])];
+    await dl.save({filename:'shop-data-'+today()+'.csv',data:rows.map(r=>r.map(c).join(',')).join('\n')})}
+  }catch(e){if(e&&e.code!='cancelled')alert('Something went wrong: '+(e.message||e.code||e))}
+}
+document.addEventListener('click',e=>{if(e.target.id=='md'){closeM();return}const b=e.target.closest('[data-a]');if(b)act(b.dataset.a,b.dataset.i,b)});
+document.addEventListener('input',e=>{if(e.target.id=='q'){q=e.target.value;render()}else if(['jp','jc','jr'].includes(e.target.id))$('#jt').textContent=money(val('jp')*val('jc')*val('jr'))});
+document.addEventListener('change',async e=>{const t=e.target;
+  if(t.id=='js'){$('#jr').value=RATES[t.value]||0;$('#jt').textContent=money(val('jp')*val('jc')*val('jr'))}
+  else if(t.id=='sp'){sp=t.value;render()}
+  else if(t.id=='fl'){fl=t.value;render()}
+  else if(t.id=='rd'){rd=t.value||today();render()}
+  else if(t.dataset.st)await db.doc('orders/'+t.dataset.st).update({status:t.value});
+  else if(t.dataset.up&&t.files[0]){try{const c=cust(cur),f=await upload(t.files[0]);await db.doc('customers/'+cur).update({files:[...(c.files||[]),f]});act('viewCust',cur)}catch(x){alert('Upload failed: '+(x.message||x.code))}}});
+init();
+</script></body></html>
